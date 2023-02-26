@@ -1,31 +1,37 @@
 import scrapy
 from scrapy import Request
 from scrapy.shell import inspect_response # required for debugging
+import csv
 import json
 import os
 import sys
 import re
 
-default_base_url = 'https://www.transfermarkt.co.uk'
+DEFAULT_BASE_URL = 'https://www.transfermarkt.us'
 
 class BaseSpider(scrapy.Spider):
   def __init__(self, base_url=None, parents=None, season=None):
-
     if base_url is not None:
       self.base_url = base_url
     else:
-      self.base_url = default_base_url
+      self.base_url = DEFAULT_BASE_URL
     
     if parents is not None:
-      with open(parents) as json_file:
-        lines = json_file.readlines()
-        parents = [ json.loads(line) for line in lines ]
+      if parents.endswith(".json"):  # Parse a JSON file
+        with open(parents) as json_file:
+          lines = json_file.readlines()
+          parents = [ json.loads(line) for line in lines ]
+      elif parents.endswith(".csv"):  # Parse a CSV file
+        with open(parents) as csv_file:
+          parents = list(csv.DictReader(csv_file))
+      else:
+        raise Exception("Unhandled parents file.")
     elif not sys.stdin.isatty():
         parents = [ json.loads(line) for line in sys.stdin ]
     else:
       parents = self.scrape_parents()
 
-    # 2nd level parents are redundat
+    # 2nd level parents are redundant
     for parent in parents:
       if parent.get('parent') is not None:
         del parent['parent']
@@ -44,16 +50,17 @@ class BaseSpider(scrapy.Spider):
       return []
 
   def start_requests(self):
-
     applicable_items = []
 
     for item in self.entrypoints:
-      # clubs extraction is best done on first_tier competition types only
-      if self.name == 'clubs' and item['competition_type'] != 'first_tier':
-        continue
+      try:
+        # clubs extraction is best done on first_tier competition types only
+        if self.name == 'clubs' and item['competition_type'] != 'first_tier':
+          continue
+      except:
+        pass
       item['seasoned_href'] = self.seasonize_entrypoin_href(item)
       applicable_items.append(item)
-
 
     return [
       Request(
@@ -66,7 +73,6 @@ class BaseSpider(scrapy.Spider):
     ]
 
   def seasonize_entrypoin_href(self, item):
-
     season = self.season
 
     if item['type'] == 'club':
@@ -84,7 +90,7 @@ class BaseSpider(scrapy.Spider):
     return seasonized_href
 
   def safe_strip(self, word):
-    if word:
+    if word and isinstance(word, str):
       return word.strip()
     else:
       return word

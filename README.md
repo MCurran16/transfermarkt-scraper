@@ -3,17 +3,36 @@
 ![docker build status](https://github.com/dcaribou/transfermarkt-scraper/workflows/Dockerhub%20Image/badge.svg)
 # transfermarkt-scraper
 
-A web scraper for collecting data from [Transfermarkt](https://www.transfermarkt.co.uk/) website. It recurses into the Transfermarkt hierarchy to find
+A web scraper for collecting data from [Transfermarkt](https://www.transfermarkt.us/) website. It recurses into the Transfermarkt hierarchy to find
 [competitions](https://www.transfermarkt.co.uk/wettbewerbe/europa), 
 [games](https://www.transfermarkt.co.uk/premier-league/gesamtspielplan/wettbewerb/GB1/saison_id/2020),
 [clubs](https://www.transfermarkt.co.uk/premier-league/startseite/wettbewerb/GB1),
-[players](https://www.transfermarkt.co.uk/manchester-city/kader/verein/281/saison_id/2019) and [appearances](https://www.transfermarkt.co.uk/sergio-aguero/leistungsdaten/spieler/26399), and extract them as JSON objects. 
+[players](https://www.transfermarkt.co.uk/manchester-city/kader/verein/281/saison_id/2019) and [appearances](https://www.transfermarkt.co.uk/sergio-aguero/leistungsdaten/spieler/26399), and extract them as a CSV file or JSON objects. 
+
 
 ```console
-====> Confederations ====> Competitions ====> (Clubs, Games) ====> Players ====> Appearances
+        Confederations
+                |
+        Competitions
+        /     |     \			
+    Clubs  Games  Transfers
+        |     /
+        Players
+        |
+    Appearances
 ```
 
 Each one of these entities can be discovered and refreshed separately by invoking the corresponding crawler.
+
+## Prerequisites
+
+You will need Python and pip to get started.
+
+- Python 3.8+
+	- Download [here](https://www.python.org/downloads/).
+- Pip3
+- Poetry
+	- `pip3 install poetry`
 
 ## Installation
 
@@ -21,8 +40,9 @@ This is a [scrapy](https://scrapy.org/) project, so it needs to be run with the
 `scrapy` command line util. This and all other required dependencies can be installed using [poetry](https://python-poetry.org/docs/).
 
 ```console
-cd transfermarkt-datasets
-poetry install
+cd transfermarkt-scraper
+
+poetry install --no-dev
 poetry shell
 ```
 
@@ -32,10 +52,19 @@ poetry shell
 > - add `ROBOTSTXT_USER_AGENT = <your user agent>` to your tfmkt/settings.py file, or
 > - specify the user agent token in the command line request (for example, `scrapy crawl players -s USER_AGENT=<your user agent> `)
 
+-
+
+> :bulb: You can change the output of supported file types: JSON or CSV
+> - update `FEED_FORMAT = 'csv'` to your tfmkt/settings.py file, or
+> - specify the user agent token in the command line request (for example, `scrapy crawl players -s FEED_FORMAT=<csv|json> `)
+
+
 These are some usage examples for how the scraper may be run.
 
+### JSON
+
 ```console
-# discover confederantions and competitions on separate invokations
+# discover confederations and competitions on separate invokations
 scrapy crawl confederations > confederations.json
 scrapy crawl competitions -a parents=confederations.json > competitions.json
 
@@ -59,7 +88,21 @@ Items are extracted in JSON format with one JSON object per item (confederation,
 
 Check out [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) to see `transfermarkt-scraper` in action on a real project.
 
-### arguments
+### CSV
+
+```console
+# discover confederations and competitions on separate invokations
+scrapy crawl confederations > confederations.csv
+scrapy crawl competitions -a parents=confederations.csv > competitions.csv
+
+# you can use intermediate files or pipe crawlers one after the other to traverse the hierarchy 
+cat competitions.csv | head -2 \
+    | scrapy crawl clubs \
+    | scrapy crawl players \
+    | scrapy crawl appearances
+```
+
+#### arguments
 - `parents`: Crawler "parents" are either a file or a piped output with the parent entities. For example, `competitions` is parent of `clubs`, which in turn is a parent of `players`.
 - `season`: The season that the crawler is to run for. It defaults to the most recent season.
 
